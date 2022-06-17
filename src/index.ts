@@ -1,3 +1,8 @@
+/*
+ * Purpose of the code: Keeping the vault delta neutral. 
+ * Platform: This is the code runs with Defender Autotask.
+ */
+
 // Import dependencies available in the autotask environment
 import { RelayerParams } from 'defender-relay-client/lib/relayer';
 import { DefenderRelayProvider, DefenderRelaySigner } from 'defender-relay-client/lib/ethers';
@@ -8,17 +13,18 @@ import isOdd from 'is-odd';
 import { PerpetualMarket__factory } from './typechain';
 import { toUnscaled, calDelta2, calDelta } from './helpers';
 
+// Please check https://testnet.arbiscan.io/address/0xdF8d64A556a60f7177A3FFc41AEde15524a218F3
 const PREDY_CONTRACT_ADDRESS = '0xdF8d64A556a60f7177A3FFc41AEde15524a218F3';
 
-// vault id
+// Your vault id
 const VAULT_ID = 4
 
 // subvaultIndex that has pro metadata
 const SUB_VAULT_INDEX = 0
 
-// 0.0002
+// Target gamma: 0.0002
 const TARGET_GAMMA8E = BigNumber.from(20000)
-// 0.1
+// Delta threshold: 0.1
 const DELTA_THRESHOLD = BigNumber.from(10000000)
 
 // Entrypoint for the Autotask
@@ -47,8 +53,8 @@ export async function handler(credentials: RelayerParams) {
   const totalEthDelta = calDelta(ethPriceInfo.fundingRate, ethAmountInVault)
   const totalEth2Delta = calDelta2(ethPriceInfo.indexPrice, eth2PriceInfo.fundingRate, eth2AmountInVault)
 
+  // vault's net delta and gamma
   const vaultNetDelta = totalEthDelta.add(totalEth2Delta)
-
   const vaultGamma = eth2AmountInVault.mul(2).div(10000)
 
   console.log('eth delta', toUnscaled(totalEthDelta, 8))
