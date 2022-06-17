@@ -8,13 +8,13 @@ import isOdd from 'is-odd';
 import { PerpetualMarket__factory } from './typechain';
 import { toUnscaled, calDelta2, calDelta } from './helpers';
 
-const PredyContractAddress = '0xdF8d64A556a60f7177A3FFc41AEde15524a218F3';
+const PREDY_CONTRACT_ADDRESS = '0xdF8d64A556a60f7177A3FFc41AEde15524a218F3';
 
 // vault id
-const vaultId = 4
+const VAULT_ID = 4
 
 // subvaultIndex that has pro metadata
-const subVaultIndex = 0
+const SUB_VAULT_INDEX = 0
 
 // 0.0002
 const TARGET_GAMMA8E = BigNumber.from(20000)
@@ -29,27 +29,27 @@ export async function handler(credentials: RelayerParams) {
     validForSeconds: 300
   })
 
-  const contract = PerpetualMarket__factory.connect(PredyContractAddress, signer)
+  const contract = PerpetualMarket__factory.connect(PREDY_CONTRACT_ADDRESS, signer)
 
   const ethPriceInfo = await contract.getTradePrice(0, [0, 0])
   const eth2PriceInfo = await contract.getTradePrice(1, [0, 0])
-  const vaultInfo = await contract.getTraderVault(vaultId)
+  const vaultInfo = await contract.getTraderVault(VAULT_ID)
 
   // 1. Calculate vault delta and gamma
-  let ethAmount = BigNumber.from(0)
-  let eth2Amount = BigNumber.from(0)
+  let ethAmountInVault = BigNumber.from(0)
+  let eth2AmountInVault = BigNumber.from(0)
 
   if (vaultInfo.subVaults.length > 0) {
-    ethAmount = vaultInfo.subVaults[subVaultIndex].positionPerpetuals[0]
-    eth2Amount = vaultInfo.subVaults[subVaultIndex].positionPerpetuals[1]
+    ethAmountInVault = vaultInfo.subVaults[SUB_VAULT_INDEX].positionPerpetuals[0]
+    eth2AmountInVault = vaultInfo.subVaults[SUB_VAULT_INDEX].positionPerpetuals[1]
   }
 
-  const totalEthDelta = calDelta(ethPriceInfo.fundingRate, ethAmount)
-  const totalEth2Delta = calDelta2(ethPriceInfo.indexPrice, eth2PriceInfo.fundingRate, eth2Amount)
+  const totalEthDelta = calDelta(ethPriceInfo.fundingRate, ethAmountInVault)
+  const totalEth2Delta = calDelta2(ethPriceInfo.indexPrice, eth2PriceInfo.fundingRate, eth2AmountInVault)
 
   const vaultNetDelta = totalEthDelta.add(totalEth2Delta)
 
-  const vaultGamma = eth2Amount.mul(2).div(10000)
+  const vaultGamma = eth2AmountInVault.mul(2).div(10000)
 
   console.log('eth delta', toUnscaled(totalEthDelta, 8))
   console.log('eth2 delta', toUnscaled(totalEth2Delta, 8))
@@ -73,7 +73,7 @@ export async function handler(credentials: RelayerParams) {
   if (!tradeAmountEth.eq(0)) {
     trades.push({
       productId: 0,
-      subVaultIndex: 0,
+      subVaultIndex: SUB_VAULT_INDEX,
       tradeAmount: tradeAmountEth,
       limitPrice: 0,
       metadata: '0x0700'
@@ -83,7 +83,7 @@ export async function handler(credentials: RelayerParams) {
   if (!tradeAmountEth2.eq(0)) {
     trades.push({
       productId: 1,
-      subVaultIndex: 0,
+      subVaultIndex: SUB_VAULT_INDEX,
       tradeAmount: tradeAmountEth2,
       limitPrice: 0,
       metadata: '0x0700'
@@ -93,7 +93,7 @@ export async function handler(credentials: RelayerParams) {
   if (trades.length > 0) {
     console.log('try to send trade tx', trades)
     await contract.trade({
-      vaultId,
+      vaultId: VAULT_ID,
       trades: trades,
       marginAmount: 0,
       deadline: 0
