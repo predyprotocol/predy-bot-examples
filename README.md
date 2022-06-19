@@ -2,25 +2,17 @@ predy-bot-examples
 =====
 
 This is experimental code. Please try this on TESTNET only.
-
 This bot code is using Defender Autotask.
 
+## Running Locally
 
-### Run in local
+You can run the scripts locally, instead of in Autotask, via a Defender Relayer. Create a Defender Relayer on arbitrum rinkeby, write down the API key and secret, and create a `.env` file or copy `.env.example` in this folder with the following content.
 
-Copy .env.example to .env and write relayer's API KEY and API SECRET.
+```
+API_KEY=yourapikey
+API_SECRET=yourapisecret
+```
 
-Modify VAULT_ID and other params in src/index.ts.
+Set your VAULT_ID and modify other params in `src/index.ts`.
 
-Build source code.
-
-'''
-npm run build
-'''
-
-
-Run bot.
-
-'''
-npm start
-'''
+Then run `npm run build` to compile source code, and `npm start` that'll run your script locally, connecting to the Relay via API.
