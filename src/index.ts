@@ -107,6 +107,9 @@ export async function handler(credentials: RelayerParams) {
       }
       break
     }
+    default: 
+      console.log('this strategy is not implemented.')
+      return
   }
 
   console.log('eth trade', toUnscaled(tradeAmountEth, 8))
