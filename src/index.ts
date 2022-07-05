@@ -10,11 +10,9 @@ import { BigNumber } from 'ethers';
 
 // Import a dependency not present in the autotask environment which will be included in the js bundle
 import isOdd from 'is-odd';
-import { PerpetualMarket__factory } from './typechain';
+import { PerpetualMarket__factory } from '@predy/v2-contracts/typechain';
 import { toUnscaled, calDelta2, calDelta } from './helpers';
-
-// Please check https://testnet.arbiscan.io/address/0xdF8d64A556a60f7177A3FFc41AEde15524a218F3
-const PREDY_CONTRACT_ADDRESS = '0xdF8d64A556a60f7177A3FFc41AEde15524a218F3';
+import PerpetualMarketRinkeby from '@predy/v2-contracts/deployments/rinkebyArbitrum/PerpetualMarket.json'
 
 // Your vault id
 // example 14 = gamma long, 15 = gamma short(crab strategy)
@@ -35,8 +33,8 @@ export async function handler(credentials: RelayerParams) {
     speed: 'average',
     validForSeconds: 300
   })
-
-  const contract = PerpetualMarket__factory.connect(PREDY_CONTRACT_ADDRESS, signer)
+  // Please check https://testnet.arbiscan.io/address/0xdF8d64A556a60f7177A3FFc41AEde15524a218F3
+  const contract = PerpetualMarket__factory.connect(PerpetualMarketRinkeby.address, signer)
 
   const ethPriceInfo = await contract.getTradePrice(0, [0, 0])
   const eth2PriceInfo = await contract.getTradePrice(1, [0, 0])
@@ -140,12 +138,12 @@ export async function handler(credentials: RelayerParams) {
 
   if (trades.length > 0) {
     console.log('try to send trade tx', trades)
-    await contract.trade({
-      vaultId: VAULT_ID,
-      trades: trades,
-      marginAmount: 0,
-      deadline: 0
-    })
+  //   await contract.trade({
+  //     vaultId: VAULT_ID,
+  //     trades: trades,
+  //     marginAmount: 0,
+  //     deadline: 0
+  //   })
   }
 }
 
