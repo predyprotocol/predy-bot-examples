@@ -138,12 +138,12 @@ export async function handler(credentials: RelayerParams) {
 
   if (trades.length > 0) {
     console.log('try to send trade tx', trades)
-  //   await contract.trade({
-  //     vaultId: VAULT_ID,
-  //     trades: trades,
-  //     marginAmount: 0,
-  //     deadline: 0
-  //   })
+    await contract.trade({
+      vaultId: VAULT_ID,
+      trades: trades,
+      marginAmount: 0,
+      deadline: 0
+    })
   }
 }
 
