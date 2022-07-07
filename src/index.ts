@@ -6,18 +6,17 @@
 // Import dependencies available in the autotask environment
 import { RelayerParams } from 'defender-relay-client/lib/relayer';
 import { DefenderRelayProvider, DefenderRelaySigner } from 'defender-relay-client/lib/ethers';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber } from 'ethers';
 
 // Import a dependency not present in the autotask environment which will be included in the js bundle
 import isOdd from 'is-odd';
-import { PerpetualMarket__factory } from './typechain';
+import { PerpetualMarket__factory } from '@predy/v2-contracts/typechain';
 import { toUnscaled, calDelta2, calDelta } from './helpers';
-
-// Please check https://testnet.arbiscan.io/address/0xdF8d64A556a60f7177A3FFc41AEde15524a218F3
-const PREDY_CONTRACT_ADDRESS = '0xdF8d64A556a60f7177A3FFc41AEde15524a218F3';
+import PerpetualMarketRinkeby from '@predy/v2-contracts/deployments/rinkebyArbitrum/PerpetualMarket.json'
 
 // Your vault id
-const VAULT_ID = 4
+// example 14 = gamma long, 15 = gamma short(crab strategy)
+const VAULT_ID = 15
 
 // subvaultIndex that has pro metadata
 const SUB_VAULT_INDEX = 0
@@ -34,8 +33,8 @@ export async function handler(credentials: RelayerParams) {
     speed: 'average',
     validForSeconds: 300
   })
-
-  const contract = PerpetualMarket__factory.connect(PREDY_CONTRACT_ADDRESS, signer)
+  // Please check https://testnet.arbiscan.io/address/0xdF8d64A556a60f7177A3FFc41AEde15524a218F3
+  const contract = PerpetualMarket__factory.connect(PerpetualMarketRinkeby.address, signer)
 
   const ethPriceInfo = await contract.getTradePrice(0, [0, 0])
   const eth2PriceInfo = await contract.getTradePrice(1, [0, 0])
@@ -50,6 +49,21 @@ export async function handler(credentials: RelayerParams) {
     eth2AmountInVault = vaultInfo.subVaults[SUB_VAULT_INDEX].positionPerpetuals[1]
   }
 
+  console.log('ethAmountInVault', toUnscaled(ethAmountInVault, 8))
+  console.log('eth2AmountInVault', toUnscaled(eth2AmountInVault, 8))
+
+  let vaultStrategy: Strategy
+  if (ethAmountInVault.gt(0) && eth2AmountInVault.lt(0)) {
+    vaultStrategy = Strategy.gammaShort
+  } else if (ethAmountInVault.lt(0) && eth2AmountInVault.gt(0)) {
+    vaultStrategy = Strategy.gammaLong
+  } else { 
+    console.log(`nothing to do.`)
+    return
+  }
+
+  console.log('vaultStrategy', String(vaultStrategy))
+
   const totalEthDelta = calDelta(ethPriceInfo.fundingRate, ethAmountInVault)
   const totalEth2Delta = calDelta2(ethPriceInfo.indexPrice, eth2PriceInfo.fundingRate, eth2AmountInVault)
 
@@ -59,15 +73,41 @@ export async function handler(credentials: RelayerParams) {
 
   console.log('eth delta', toUnscaled(totalEthDelta, 8))
   console.log('eth2 delta', toUnscaled(totalEth2Delta, 8))
+  console.log('vault net delta', toUnscaled(vaultNetDelta, 8))
+  console.log('vault gammma', toUnscaled(vaultGamma, 8))
 
   // 2. Calculate trade amounts to make the vault delta neutral
   let tradeAmountEth = BigNumber.from(0)
-  const tradeAmountEth2 = TARGET_GAMMA8E.sub(vaultGamma).mul(10000).div(2)
+  let tradeAmountEth2 = BigNumber.from(0)
 
-  if (vaultNetDelta.gt(DELTA_THRESHOLD)) {
-    tradeAmountEth = vaultNetDelta.mul(-1)
-  } else if (vaultNetDelta.lt(DELTA_THRESHOLD.mul(-1))) {
-    tradeAmountEth = vaultNetDelta.mul(-1)
+  switch (vaultStrategy) { 
+    case Strategy.gammaLong: { 
+      tradeAmountEth2 = TARGET_GAMMA8E.sub(vaultGamma).mul(10000).div(2)
+
+      // If delta is too large, eth short
+      // If delta is negative, eth long
+      if (vaultNetDelta.gt(DELTA_THRESHOLD)) {
+        tradeAmountEth = vaultNetDelta.mul(-1)
+      } else if (vaultNetDelta.lt(DELTA_THRESHOLD.mul(-1))) {
+        tradeAmountEth = vaultNetDelta.mul(-1)
+      }
+      break
+    }
+    case Strategy.gammaShort: { 
+      tradeAmountEth2 = TARGET_GAMMA8E.add(vaultGamma).mul(10000).div(2)
+
+      // If delta is too large, eth long
+      // If delta is negative, eth short
+      if (vaultNetDelta.gt(DELTA_THRESHOLD)) {
+        tradeAmountEth = vaultNetDelta
+      } else if (vaultNetDelta.lt(DELTA_THRESHOLD.mul(-1))) {
+        tradeAmountEth = vaultNetDelta
+      }
+      break
+    }
+    default: 
+      console.log('this strategy is not implemented.')
+      return
   }
 
   console.log('eth trade', toUnscaled(tradeAmountEth, 8))
@@ -112,6 +152,12 @@ type EnvInfo = {
   API_KEY: string;
   API_SECRET: string;
 }
+
+const Strategy = {
+  gammaLong: "gammaLong",
+  gammaShort: "gammaShort",
+} as const;
+type Strategy = typeof Strategy[keyof typeof Strategy]
 
 // To run locally (this code will not be executed in Autotasks)
 if (require.main === module) {

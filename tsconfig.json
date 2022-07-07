@@ -7,5 +7,9 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "esModuleInterop": true,
-  }
+  },
+  "include": [
+    "src",
+    "node_modules/@predy/v2-contracts"
+  ],
 }
