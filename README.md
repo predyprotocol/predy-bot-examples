@@ -2,7 +2,8 @@ predy-bot-examples
 =====
 
 This is experimental code. Please try this on TESTNET only.
-This bot code is using Defender Autotask.
+This program is a bot program to get the gamma short or gamma long position and keep it delta neutral in Predy V2.
+The code is using Defender Autotask.
 
 ## Running Locally
 
