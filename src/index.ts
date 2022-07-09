@@ -10,7 +10,8 @@ import { BigNumber } from 'ethers';
 
 // Import a dependency not present in the autotask environment which will be included in the js bundle
 import isOdd from 'is-odd';
-import { PerpetualMarket__factory } from '@predy/v2-contracts/typechain';
+import { ArbMulticall2__factory, PerpetualMarket__factory } from '@predy/v2-contracts/typechain';
+
 import { toUnscaled, calDelta2, calDelta } from './helpers';
 import PerpetualMarketRinkeby from '@predy/v2-contracts/deployments/rinkebyArbitrum/PerpetualMarket.json'
 
@@ -26,6 +27,10 @@ const TARGET_GAMMA8E = BigNumber.from(20000)
 // Delta threshold: 0.1
 const DELTA_THRESHOLD = BigNumber.from(10000000)
 
+// ethereum mines 4 blocks per minute
+const L1_BLOCK_PER_MINUTE = BigNumber.from(4)
+const L1_BLOCKS_PER_20_MINUTES = L1_BLOCK_PER_MINUTE.mul(20)
+
 // Entrypoint for the Autotask
 export async function handler(credentials: RelayerParams) {
   const provider = new DefenderRelayProvider(credentials)
@@ -33,14 +38,33 @@ export async function handler(credentials: RelayerParams) {
     speed: 'average',
     validForSeconds: 300
   })
-  // Please check https://testnet.arbiscan.io/address/0xdF8d64A556a60f7177A3FFc41AEde15524a218F3
+
+  
+  // 1. Get L1 block number from arb multi call contract.
+  const network = await provider.getNetwork()
+
+  let multiCall2Address
+  if (network.chainId == 421611) {
+    console.log('relayer runs on arbitrum rinkeby.')
+    multiCall2Address = `0x7eCfBaa8742fDf5756DAC92fbc8b90a19b8815bF`
+  } else if (network.chainId == 42161) { 
+    console.log('relayer runs on arbitrum mainnet.')
+    multiCall2Address = `0x842eC2c7D803033Edf55E478F461FC547Bc54EB2`
+  }  
+  const multiCall2Contract = ArbMulticall2__factory.connect(multiCall2Address, signer)
+  const latestL1BlockNumber = await multiCall2Contract.getL1BlockNumber()
+  const deadline = (latestL1BlockNumber).add(L1_BLOCKS_PER_20_MINUTES)
+
+  console.log('latestL1BlockNumber', latestL1BlockNumber.toNumber())
+  console.log('deadline', deadline.toNumber())
+
   const contract = PerpetualMarket__factory.connect(PerpetualMarketRinkeby.address, signer)
 
   const ethPriceInfo = await contract.getTradePrice(0, [0, 0])
   const eth2PriceInfo = await contract.getTradePrice(1, [0, 0])
   const vaultInfo = await contract.getTraderVault(VAULT_ID)
 
-  // 1. Calculate vault delta and gamma
+  // 2. Calculate vault delta and gamma
   let ethAmountInVault = BigNumber.from(0)
   let eth2AmountInVault = BigNumber.from(0)
 
@@ -76,7 +100,7 @@ export async function handler(credentials: RelayerParams) {
   console.log('vault net delta', toUnscaled(vaultNetDelta, 8))
   console.log('vault gammma', toUnscaled(vaultGamma, 8))
 
-  // 2. Calculate trade amounts to make the vault delta neutral
+  // 3. Calculate trade amounts to make the vault delta neutral
   let tradeAmountEth = BigNumber.from(0)
   let tradeAmountEth2 = BigNumber.from(0)
 
@@ -113,7 +137,7 @@ export async function handler(credentials: RelayerParams) {
   console.log('eth trade', toUnscaled(tradeAmountEth, 8))
   console.log('eth2 trade', toUnscaled(tradeAmountEth2, 8))
 
-  // 3. Create trade tx
+  // 4. Create trade tx
   const trades = []
 
   if (!tradeAmountEth.eq(0)) {
@@ -142,7 +166,7 @@ export async function handler(credentials: RelayerParams) {
       vaultId: VAULT_ID,
       trades: trades,
       marginAmount: 0,
-      deadline: 0
+      deadline: deadline
     })
   }
 }
